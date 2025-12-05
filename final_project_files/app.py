@@ -7,8 +7,7 @@ app.secret_key = "final-project"
 
 # Fake database for now. someone else will need to add the one given
 
-DB_PATH = os.path.join(os.getcwd(), "reservations.db")
-next_id = 1
+DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "reservations.db")
 
 def get_db_connection(): 
     connection = sqlite3.connect(DB_PATH)
@@ -31,33 +30,51 @@ def generate_eticket(first_name):
     return ticket
 
 def is_seat_taken(row, col):
-    for r in DB_PATH:
-        if r["seat_row"] == row and r["seat_col"] == col:
-            return True
-    return False
-
+    conn = get_db_connection()
+    cur = conn.execute(
+        "SELECT 1 FROM reservations WHERE seatRow = ? AND seatColumn = ?",
+        (row, col),
+    )
+    result = cur.fetchone()
+    conn.close()
+    return result is not None
 
 def create_reservation(first_name, last_name, seat_row, seat_col):
-    global next_id
-
     if is_seat_taken(seat_row, seat_col):
         return None
 
-    reservation = {
-        "id": next_id,
+    full_name = f"{first_name} {last_name}".strip()
+    eticket = generate_eticket(first_name)
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute(
+        """
+        INSERT INTO reservations (passengerName, seatRow, seatColumn, eTicketNumber)
+        VALUES (?, ?, ?, ?)
+        """,
+        (full_name, seat_row, seat_col, eticket),
+    )
+    conn.commit()
+    reservation_id = cur.lastrowid
+    conn.close()
+
+    return {
+        "id": reservation_id,
         "first_name": first_name,
         "last_name": last_name,
         "seat_row": seat_row,
         "seat_col": seat_col,
-        "reservation_code": generate_eticket(first_name)
+        "reservation_code": eticket,
     }
 
-    DB_PATH.append(reservation)
-    next_id += 1
-
-    return reservation
-
 def get_seating_chart():
+    conn = get_db_connection()
+    rows = conn.execute("SELECT seatRow, seatColumn FROM reservations").fetchall()
+    conn.close()
+
+    reserved_seats = {(r["seatRow"], r["seatColumn"]) for r in rows}
+    
     chart = []
 
     for row in range(1, 13):
