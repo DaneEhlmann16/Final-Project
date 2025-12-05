@@ -31,31 +31,44 @@ def generate_eticket(first_name):
     return ticket
 
 def is_seat_taken(row, col):
-    for r in DB_PATH:
-        if r["seat_row"] == row and r["seat_col"] == col:
-            return True
-    return False
+    connection = get_db_connection()
+    result = connection.execute(
+        "SELECT 1 FROM reservations WHERE seat_row = ? AND seat_col = ?",
+        (row, col),
+    ).fetchone()
+    connection.close()
+    
+    return result is not None
 
 
 def create_reservation(first_name, last_name, seat_row, seat_col):
-    global next_id
 
     if is_seat_taken(seat_row, seat_col):
         return None
+    
+    reservation_code = generate_eticket(first_name)
+    connection = get_db_connection()
+    connection.execute(
+        """
+        INSERT INTO reservations (first_name, last_name, seat_row, seat_col, reservation_code)
+        VALUES (?, ?, ?, ?,)
+        """,
+        (first_name, last_name, seat_row, seat_col, reservation_code),
+    )
+    connection.commit()
 
-    reservation = {
-        "id": next_id,
-        "first_name": first_name,
-        "last_name": last_name,
-        "seat_row": seat_row,
-        "seat_col": seat_col,
-        "reservation_code": generate_eticket(first_name)
-    }
+    new_res_code = connection.execute(
+        """
+        SELECT id, first_name, last_name, seat_row, seat_col, reservation_code
+        FROM reservations
+        ORDER by id DESC
+        LIMIT 1
+        """
+    ).fetchone()
+    
+    connection.close()
+    return new_res_code
 
-    DB_PATH.append(reservation)
-    next_id += 1
-
-    return reservation
 
 def get_seating_chart():
     chart = []
