@@ -1,12 +1,19 @@
 from flask import Flask, render_template, request, redirect, url_for, flash
+import sqlite3
+import os
 
 app = Flask(__name__)
 app.secret_key = "final-project"
 
 # Fake database for now. someone else will need to add the one given
 
-fake_reservations = []
+DB_PATH = os.path.join(os.getcwd(), "reservations.db")
 next_id = 1
+
+def get_db_connection(): 
+    connection = sqlite3.connect(DB_PATH)
+    connection.row_factory = sqlite3.Row
+    return connection
 
 def generate_eticket(first_name):
     base = "infotc4320"
@@ -24,7 +31,7 @@ def generate_eticket(first_name):
     return ticket
 
 def is_seat_taken(row, col):
-    for r in fake_reservations:
+    for r in DB_PATH:
         if r["seat_row"] == row and r["seat_col"] == col:
             return True
     return False
@@ -45,7 +52,7 @@ def create_reservation(first_name, last_name, seat_row, seat_col):
         "reservation_code": generate_eticket(first_name)
     }
 
-    fake_reservations.append(reservation)
+    DB_PATH.append(reservation)
     next_id += 1
 
     return reservation
