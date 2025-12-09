@@ -3,20 +3,19 @@ import sqlite3
 import os
 from functools import wraps
 
-# If your folder is named "Templates" (capital T), this makes Flask find it.
 app = Flask(__name__, template_folder="Templates")
 app.secret_key = "final-project"
 
-# Path to reservations.db (must be in the same folder as this file)
+# Path to reservations.db
 DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "reservations.db")
 
-
+# Gets connection to the database
 def get_db_connection():
     connection = sqlite3.connect(DB_PATH)
     connection.row_factory = sqlite3.Row
     return connection
 
-
+# Generate an eticket that interchages and capitalizes letters from the first name and the string 'infotc4320'
 def generate_eticket(first_name):
     base = "infotc4320"
     first_name = first_name.lower()
@@ -32,7 +31,7 @@ def generate_eticket(first_name):
 
     return ticket
 
-
+# Check the database to see if a see is already taken
 def is_seat_taken(row, col):
     conn = get_db_connection()
     cur = conn.execute(
@@ -43,7 +42,8 @@ def is_seat_taken(row, col):
     conn.close()
     return result is not None
 
-
+# Create a reservation in the database if the seat isn't taken.
+# Also return the reservation information
 def create_reservation(first_name, last_name, seat_row, seat_col):
     if is_seat_taken(seat_row, seat_col):
         return None
@@ -73,11 +73,8 @@ def create_reservation(first_name, last_name, seat_row, seat_col):
         "reservation_code": eticket,
     }
 
-
+# Build a 12x4 chart with the open seats as O's and taken seats as X's
 def get_seating_chart():
-    """
-    Returns a 12x4 chart of 'X' (reserved) and 'O' (open).
-    """
     conn = get_db_connection()
     rows = conn.execute("SELECT seatRow, seatColumn FROM reservations").fetchall()
     conn.close()
@@ -96,16 +93,12 @@ def get_seating_chart():
 
     return chart
 
-
+# Generate a 12x4 matrix that displays the price of the seats
 def get_cost_matrix():
-    """
-    Function to generate cost matrix for flights
-    Output: Returns a 12 x 4 matrix of prices
-    """
     cost_matrix = [[100, 75, 50, 100] for _ in range(12)]
     return cost_matrix
 
-
+# Calculate the total sales of the seats taken
 def calculate_total_sales():
     conn = get_db_connection()
     rows = conn.execute("SELECT seatRow, seatColumn FROM reservations").fetchall()
@@ -116,11 +109,10 @@ def calculate_total_sales():
     for r in rows:
         row = r["seatRow"]
         col = r["seatColumn"]
-        # seatRow/seatColumn are 1-based, matrix is 0-based
         total += cost_matrix[row - 1][col - 1]
     return total
 
-
+# Return a list of all the reservations
 def get_all_reservations():
     conn = get_db_connection()
     rows = conn.execute(
@@ -133,18 +125,7 @@ def get_all_reservations():
     conn.close()
     return rows
 
-
-def admin_login_required(f):
-    @wraps(f)
-    def wrapper(*args, **kwargs):
-        if not session.get("admin_logged_in"):
-            flash("Please log in as an administrator.")
-            return redirect(url_for("admin_login"))
-        return f(*args, **kwargs)
-
-    return wrapper
-
-
+# ROUTES UNDER
 @app.route("/", methods=["GET", "POST"])
 def index():
     if request.method == "POST":
@@ -261,7 +242,6 @@ def admin_login():
 
 
 @app.route("/admin/dashboard")
-@admin_login_required
 def admin_dashboard():
     seating_chart = get_seating_chart()
     total_sales = calculate_total_sales()
@@ -275,7 +255,6 @@ def admin_dashboard():
 
 
 @app.route("/admin/delete/<int:reservation_id>", methods=["POST"])
-@admin_login_required
 def delete_reservation(reservation_id):
     conn = get_db_connection()
     conn.execute("DELETE FROM reservations WHERE id = ?", (reservation_id,))
